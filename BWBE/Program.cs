@@ -259,15 +259,18 @@ app.MapDelete("/recipes/{id}", async (string id, BakeryCtx db) =>
     return Results.Ok();
 });
 
-app.MapDelete("/cookstep/", async (CookStepDelete deleteInfo, BakeryCtx db) =>
-{
-    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == deleteInfo.RecipeId) is not { } recipe) return Results.NotFound();
-    if (await db.CookStep.FirstOrDefaultAsync(x => x.Id == deleteInfo.Id) is not { } cookStep) return Results.NotFound();
 
-    var stepList = await db.CookStep.Where(x => (x.RecipeId == deleteInfo.RecipeId) && x.Id > deleteInfo.Id).ToListAsync();
+app.MapDelete("/cookstep/id/{id}/recipeid/{recipeId}", async (int id, string recipeId, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == recipeId) is not { } recipe) return Results.NotFound();
+    if (await db.CookStep.FirstOrDefaultAsync(x => x.Id == id) is not { } cookStep) return Results.NotFound();
+
+    var stepList = await db.CookStep.Where(x => (x.RecipeId == recipeId) && x.Id > id).ToListAsync();
 
     foreach (var step in stepList) {
         step.Id = step.Id - 1;
+        db.Add(step);
+        await db.SaveChangesAsync();
     }
 
     db.CookStep.Remove(cookStep);
@@ -275,6 +278,7 @@ app.MapDelete("/cookstep/", async (CookStepDelete deleteInfo, BakeryCtx db) =>
 
     return Results.Ok();
 });
+
 
 
 app.Run();
