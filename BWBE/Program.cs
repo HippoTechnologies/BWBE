@@ -133,6 +133,16 @@ app.MapGet("/recipes", async (HttpRequest request, BakeryCtx db) => {
             : Results.NotFound();
 });
 
+app.MapGet("/recipes/id/{id}", async (int id, HttpRequest request, BakeryCtx db) => {
+    var token = request.Headers.Authorization.ToString();
+
+    return token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")
+        ? Results.StatusCode(403)
+        : await db.Recipe.FindAsync(id) is { } recipe
+            ? Results.Ok(recipe)
+            : Results.NotFound();
+});
+
 app.MapPost("/users", async (UserInit init, BakeryCtx db) =>
 {
     var user = new User
@@ -190,11 +200,71 @@ app.MapPost("/login", async (Login login, BakeryCtx db) =>
 
 app.MapPost("/email", async () => Results.Ok());
 
+app.MapPost("/recipes", async (RecipeInit init, BakeryCtx db) =>
+{
+    var recipe = new Recipe
+    {
+        Id = Guid.NewGuid().ToString(),
+        Name = init.Name,
+        Description = init.Description,
+        PrepUnit = init.PrepUnit,
+        CookUnit = init.CookUnit,
+        Rating = init.Rating,
+        PrepTime = init.PrepTime,
+        CookTime = init.CookTime
+    };
+
+    db.Add(recipe);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/recipes/{recipe.Id}", recipe);
+});
+
+app.MapPost("/cookstep/id:{id}", async (CookStepInit init, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == init.RecipeId) is not { } recipe) return Results.NotFound();
+
+    int count = await db.CookStep.Where(x => x.RecipeId == init.RecipeId).CountAsync(); //unsure if count automatically returns a integer
+
+    var cookStep = new CookStep
+    {
+        Id = count + 1,
+        Description = init.Description,
+        RecipeId = init.RecipeId
+    }; 
+
+    db.Add(cookStep);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/cookstep/{cookStep.Id}", cookStep);
+});
+
 app.MapDelete("/user/{uname}", async (string uname, BakeryCtx db) =>
 {
     if (await db.User.FirstOrDefaultAsync(x => x.Username == uname) is not { } user) return Results.NotFound();
 
     db.User.Remove(user);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+app.MapDelete("/recipes/{id}", async (string id, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == id) is not { } recipe) return Results.NotFound();
+
+    db.Recipe.Remove(recipe);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+app.MapDelete("/cookstep/", async (CookStepDelete deleteInfo, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == deleteInfo.RecipeId) is not { } recipe) return Results.NotFound();
+    if (await db.CookStep.FirstOrDefaultAsync(x => x.Id == deleteInfo.Id) is not { } cookStep) return Results.NotFound();
+
+    db.CookStep.Remove(cookStep);
     await db.SaveChangesAsync();
 
     return Results.Ok();

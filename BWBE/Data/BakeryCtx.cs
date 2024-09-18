@@ -22,4 +22,6 @@ public class BakeryCtx : DbContext
     public DbSet<Session> Session => Set<Session>();
 
     public DbSet<Recipe> Recipe => Set<Recipe>();
+
+    public DbSet<CookStep> CookStep => Set<CookStep>();
 }
