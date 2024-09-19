@@ -47,7 +47,7 @@ var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(options => options.DefaultModelsExpandDepth(-1));
 
-app.MapGet("/users", async (HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/users", async (HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -56,7 +56,7 @@ app.MapGet("/users", async (HttpRequest request, BakeryCtx db) =>
         : Results.Ok(await db.User.ToListAsync());
 });
 
-app.MapGet("/users/search/uname/{uname}", async (string uname, HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/users/search/uname/{uname}", async (string uname, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -74,7 +74,7 @@ app.MapGet("/users/search/uname/{uname}", async (string uname, HttpRequest reque
     return user.Username != uname ? Results.StatusCode(403) : Results.Ok(user);
 });
 
-app.MapGet("/users/search/id/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/users/search/id/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -92,7 +92,7 @@ app.MapGet("/users/search/id/{id}", async (string id, HttpRequest request, Baker
     return user.Id != id ? Results.StatusCode(403) : Results.Ok(user);
 });
 
-app.MapGet("/session", async (HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/session", async (HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -101,7 +101,7 @@ app.MapGet("/session", async (HttpRequest request, BakeryCtx db) =>
         : Results.Ok(await db.Session.ToListAsync());
 });
 
-app.MapGet("/session/search/uid/{userId}", async (string userId, HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/session/search/uid/{userId}", async (string userId, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -112,7 +112,7 @@ app.MapGet("/session/search/uid/{userId}", async (string userId, HttpRequest req
             : Results.NotFound();
 });
 
-app.MapGet("/session/search/id/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
+app.MapGet("/api/session/search/id/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -123,8 +123,9 @@ app.MapGet("/session/search/id/{id}", async (string id, HttpRequest request, Bak
             : Results.NotFound();
 });
 
-app.MapGet("/recipes", async (HttpRequest request, BakeryCtx db) => { 
+app.MapGet("/api/recipes", async (HttpRequest request, BakeryCtx db) => { 
     var token = request.Headers.Authorization.ToString();
+
 
     return token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")
         ? Results.StatusCode(403)
@@ -133,7 +134,7 @@ app.MapGet("/recipes", async (HttpRequest request, BakeryCtx db) => {
             : Results.NotFound();
 });
 
-app.MapGet("/recipes/id/{id}", async (int id, HttpRequest request, BakeryCtx db) => {
+app.MapGet("/api/recipes/id/{id}", async (string id, HttpRequest request, BakeryCtx db) => {
     var token = request.Headers.Authorization.ToString();
 
     return token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")
@@ -143,7 +144,18 @@ app.MapGet("/recipes/id/{id}", async (int id, HttpRequest request, BakeryCtx db)
             : Results.NotFound();
 });
 
-app.MapPost("/users", async (UserInit init, BakeryCtx db) =>
+app.MapGet("/api/cooksteps/recipeid/{recipeId}", async (string recipeId, HttpRequest request, BakeryCtx db) => {
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")) return Results.StatusCode(403);
+
+
+
+
+    return await db.CookStep.Where(x => x.RecipeId == recipeId).ToListAsync();
+});
+
+app.MapPost("/api/users", async (UserInit init, BakeryCtx db) =>
 {
     var user = new User
     {
@@ -169,10 +181,10 @@ app.MapPost("/users", async (UserInit init, BakeryCtx db) =>
     db.Add(session);
     await db.SaveChangesAsync();
 
-    return Results.Created($"/sessions/{session.Id}", session);
+    return Results.Created($"/api/sessions/{session.Id}", session);
 });
 
-app.MapPost("/login", async (Login login, BakeryCtx db) =>
+app.MapPost("/api/login", async (Login login, BakeryCtx db) =>
 {
     if (await db.User.FirstOrDefaultAsync(x => x.Username == login.Username) is not { } user) return Results.NotFound();
 
@@ -195,13 +207,15 @@ app.MapPost("/login", async (Login login, BakeryCtx db) =>
     db.Session.Add(newSession);
     await db.SaveChangesAsync();
 
-    return Results.Created($"/sessions/{newSession.Id}", newSession);
+    return Results.Created($"/api/sessions/{newSession.Id}", newSession);
 });
 
-app.MapPost("/email", async () => Results.Ok());
+app.MapPost("/api/email", async () => Results.Ok());
 
-app.MapPost("/recipes", async (RecipeInit init, BakeryCtx db) =>
+app.MapPost("/api/recipes", async (RecipeInit init, BakeryCtx db) =>
 {
+    //    if (await GetSession(db, token) is not { } session) return Results.StatusCode(403);
+    // else (devauth-key)
     var recipe = new Recipe
     {
         Id = Guid.NewGuid().ToString(),
@@ -217,10 +231,10 @@ app.MapPost("/recipes", async (RecipeInit init, BakeryCtx db) =>
     db.Add(recipe);
     await db.SaveChangesAsync();
 
-    return Results.Created($"/recipes/{recipe.Id}", recipe);
+    return Results.Created($"/api/recipes/{recipe.Id}", recipe);
 });
 
-app.MapPost("/cookstep/id:{id}", async (CookStepInit init, BakeryCtx db) =>
+app.MapPost("/api/cookstep", async (CookStepInit init, BakeryCtx db) =>
 {
     if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == init.RecipeId) is not { } recipe) return Results.NotFound();
 
@@ -236,10 +250,10 @@ app.MapPost("/cookstep/id:{id}", async (CookStepInit init, BakeryCtx db) =>
     db.Add(cookStep);
     await db.SaveChangesAsync();
 
-    return Results.Created($"/cookstep/{cookStep.Id}", cookStep);
+    return Results.Created($"/api/cookstep/{cookStep.Id}", cookStep);
 });
 
-app.MapDelete("/user/{uname}", async (string uname, BakeryCtx db) =>
+app.MapDelete("/api/user/{uname}", async (string uname, BakeryCtx db) =>
 {
     if (await db.User.FirstOrDefaultAsync(x => x.Username == uname) is not { } user) return Results.NotFound();
 
@@ -249,7 +263,7 @@ app.MapDelete("/user/{uname}", async (string uname, BakeryCtx db) =>
     return Results.Ok();
 });
 
-app.MapDelete("/recipes/{id}", async (string id, BakeryCtx db) =>
+app.MapDelete("/api/recipes/{id}", async (string id, BakeryCtx db) =>
 {
     if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == id) is not { } recipe) return Results.NotFound();
 
@@ -260,7 +274,7 @@ app.MapDelete("/recipes/{id}", async (string id, BakeryCtx db) =>
 });
 
 
-app.MapDelete("/cookstep/id/{id}/recipeid/{recipeId}", async (int id, string recipeId, BakeryCtx db) =>
+app.MapDelete("/api/cookstep/id/{id}/recipeid/{recipeId}", async (int id, string recipeId, BakeryCtx db) =>
 {
     if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == recipeId) is not { } recipe) return Results.NotFound();
     if (await db.CookStep.FirstOrDefaultAsync(x => x.Id == id) is not { } cookStep) return Results.NotFound();
