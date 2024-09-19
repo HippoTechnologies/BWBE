@@ -40,6 +40,16 @@ async Task<Session?> GetSession(BakeryCtx db, string token)
     return session;
 }
 
+async void CookStepUpdate(BakeryCtx db, List<CookStep> stepList)
+{
+    foreach (var step in stepList)
+    {
+        db.CookStep.Add(new CookStep { Id = step.Id - 1, Description = step.Description, RecipeId = step.RecipeId });
+        db.CookStep.Remove(step);
+        await db.SaveChangesAsync();
+    }
+}
+
 // API SETUP
 
 var methodsOrder = new[] { "get", "post", "put", "patch", "delete", "options", "trace" };
@@ -57,7 +67,7 @@ app.UseSwaggerUI(options => options.DefaultModelsExpandDepth(-1));
 
 // ENDPOINT MAPPINGS
 
-// LOGIN ENPOINTS
+// LOGIN ENDPOINTS
 
 // RETRIEVES ALL USERS - RESTRICTED TO DEV USE ONLY
 app.MapGet("users", async (HttpRequest request, BakeryCtx db) =>
@@ -323,14 +333,14 @@ app.MapDelete("user/{uname}", async (HttpRequest request, string uname, BakeryCt
 app.MapGet("inventory", async (HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     return await GetSession(db, token) is null ? Results.StatusCode(403) : Results.Ok(db.InventoryItem);
 });
 
 app.MapGet("inventory/id/{itemId}", async (HttpRequest request, string itemId, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     if (await GetSession(db, token) is null) return Results.StatusCode(403);
     //if (await.db.InventoryItem.FirstOrDefaultAsync(x => x.ItemID == itemID) is not { } item) return Results.NoContent();
 
@@ -342,7 +352,7 @@ app.MapGet("inventory/id/{itemId}", async (HttpRequest request, string itemId, B
 app.MapGet("inventory/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     if (await GetSession(db, token) is null) return Results.StatusCode(403);
 
     return await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is null
@@ -375,10 +385,10 @@ app.MapPost("inventory", async (HttpRequest request, InventoryItemInit init, Bak
 app.MapPut("inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     if (await GetSession(db, token) is null) return Results.StatusCode(403);
     if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == init.Name) is not { } item) return Results.NotFound();
-    
+
     item.Name = init.Name != "" ? init.Name : item.Name;
     item.Quantity = init.Quantity;
     item.PurchaseQuantity = init.PurchaseQuantity;
@@ -393,7 +403,7 @@ app.MapPut("inventory", async (HttpRequest request, InventoryItemInit init, Bake
 app.MapDelete("inventory/delete/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     if (await GetSession(db, token) is null) return Results.StatusCode(403);
 
     if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is not { } inventoryItem)
@@ -408,13 +418,117 @@ app.MapDelete("inventory/delete/name/{name}", async (HttpRequest request, string
 app.MapDelete("inventory/delete/id/{id}", async (HttpRequest request, string id, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
-    
+
     if (await GetSession(db, token) is null) return Results.StatusCode(403);
 
     if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == id) is not { } inventoryItem) return Results.NotFound();
 
     db.InventoryItem.Remove(inventoryItem);
     await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+// RECIPE ENDPOINTS
+
+app.MapGet("recipes", async (HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+
+    return token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")
+        ? Results.StatusCode(403)
+        : await db.Recipe.ToListAsync() is { } recipe
+            ? Results.Ok(recipe)
+            : Results.NotFound();
+});
+
+app.MapGet("recipes/id/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    return token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")
+        ? Results.StatusCode(403)
+        : await db.Recipe.FindAsync(id) is { } recipe
+            ? Results.Ok(recipe)
+            : Results.NotFound();
+});
+
+app.MapGet("cookStep/recipeId/{recipeId}", async (string recipeId, HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")) return Results.StatusCode(403);
+    var list = await db.CookStep.Where(x => x.RecipeId == recipeId).ToListAsync();
+    return Results.Ok(list);
+});
+
+app.MapPost("recipes", async (HttpRequest request, RecipeInit init, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+
+    var recipe = new Recipe
+    {
+        Id = Guid.NewGuid().ToString(),
+        Name = init.Name,
+        Description = init.Description,
+        PrepUnit = init.PrepUnit,
+        CookUnit = init.CookUnit,
+        Rating = init.Rating,
+        PrepTime = init.PrepTime,
+        CookTime = init.CookTime
+    };
+
+    db.Add(recipe);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"recipes/{recipe.Id}", recipe);
+});
+
+app.MapPost("cookStep", async (CookStepInit init, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == init.RecipeId) is null) return Results.NotFound();
+
+    var count = await db.CookStep.Where(x => x.RecipeId == init.RecipeId)
+        .CountAsync(); //unsure if count automatically returns a integer
+
+    var cookStep = new CookStep
+    {
+        Id = count + 1,
+        Description = init.Description,
+        RecipeId = init.RecipeId
+    };
+
+    db.Add(cookStep);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"cookStep/{cookStep.Id}", cookStep);
+});
+
+app.MapDelete("recipes/{id}", async (string id, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == id) is not { } recipe) return Results.NotFound();
+
+    db.Recipe.Remove(recipe);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+
+app.MapDelete("cookStep/id/{id:int}/recipeId/{recipeId}", async (int id, string recipeId, BakeryCtx db) =>
+{
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == recipeId) is null) return Results.NotFound();
+    if (await db.CookStep.FirstOrDefaultAsync(z => z.Id == id) is not { } cookStep) return Results.NotFound();
+
+
+    var stepList = await db.CookStep.Where(y => y.RecipeId == recipeId).Where(y => y.Id > cookStep.Id).ToListAsync();
+
+    db.CookStep.Remove(cookStep);
+    await db.SaveChangesAsync();
+
+    CookStepUpdate(db, stepList);
 
     return Results.Ok();
 });

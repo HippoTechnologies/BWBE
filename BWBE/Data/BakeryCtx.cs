@@ -26,4 +26,8 @@ public class BakeryCtx : DbContext
     public DbSet<PhoneNumber> PhoneNumber => Set<PhoneNumber>();
     
     public DbSet<InventoryItem> InventoryItem => Set<InventoryItem>();
+    
+    public DbSet<Recipe> Recipe => Set<Recipe>();
+    
+    public DbSet<CookStep>CookStep => Set<CookStep>();
 }
