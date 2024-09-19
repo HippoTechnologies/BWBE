@@ -25,6 +25,18 @@ async Task<bool> AuthSession(BakeryCtx db, Session session)
     return false;
 }
 
+async Task<int> CookStepUpdate(BakeryCtx db, List<CookStep> stepList)
+{
+    foreach (var step in stepList)
+    {
+        db.CookStep.Add(new CookStep { Id = step.Id - 1, Description = step.Description, RecipeId = step.RecipeId });
+        db.CookStep.Remove(step);
+        await db.SaveChangesAsync();
+    }
+
+    return 0;
+}
+
 async Task<Session?> GetSession(BakeryCtx db, string token)
 {
     if (await db.Session.FindAsync(token) is not { } session) return null;
@@ -144,15 +156,12 @@ app.MapGet("/api/recipes/id/{id}", async (string id, HttpRequest request, Bakery
             : Results.NotFound();
 });
 
-app.MapGet("/api/cooksteps/recipeid/{recipeId}", async (string recipeId, HttpRequest request, BakeryCtx db) => {
+app.MapGet("/api/cookstep/recipeid/{recipeId}", async (string recipeId, HttpRequest request, BakeryCtx db) => {
     var token = request.Headers.Authorization.ToString();
 
     if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY")) return Results.StatusCode(403);
-
-
-
-
-    return await db.CookStep.Where(x => x.RecipeId == recipeId).ToListAsync();
+    var list = await db.CookStep.Where(x => x.RecipeId == recipeId).ToListAsync();
+    return Results.Ok(list);
 });
 
 app.MapPost("/api/users", async (UserInit init, BakeryCtx db) =>
@@ -276,19 +285,16 @@ app.MapDelete("/api/recipes/{id}", async (string id, BakeryCtx db) =>
 
 app.MapDelete("/api/cookstep/id/{id}/recipeid/{recipeId}", async (int id, string recipeId, BakeryCtx db) =>
 {
-    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == recipeId) is not { } recipe) return Results.NotFound();
-    if (await db.CookStep.FirstOrDefaultAsync(x => x.Id == id) is not { } cookStep) return Results.NotFound();
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == recipeId) is not { } recipe) return Results.NotFound();    
+    if (await db.CookStep.FirstOrDefaultAsync(z => z.Id == id) is not { } cookStep) return Results.NotFound();
 
-    var stepList = await db.CookStep.Where(x => (x.RecipeId == recipeId) && x.Id > id).ToListAsync();
-
-    foreach (var step in stepList) {
-        step.Id = step.Id - 1;
-        db.Add(step);
-        await db.SaveChangesAsync();
-    }
+    
+    var stepList = await db.CookStep.Where(y => (y.RecipeId == recipeId)).Where(y => y.Id > cookStep.Id).ToListAsync();
 
     db.CookStep.Remove(cookStep);
     await db.SaveChangesAsync();
+
+    await CookStepUpdate(db, stepList);
 
     return Results.Ok();
 });
