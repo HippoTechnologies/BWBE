@@ -24,4 +24,6 @@ public class BakeryCtx : DbContext
     public DbSet<Email> Email => Set<Email>();
     
     public DbSet<PhoneNumber> PhoneNumber => Set<PhoneNumber>();
+    
+    public DbSet<InventoryItem> InventoryItem => Set<InventoryItem>();
 }

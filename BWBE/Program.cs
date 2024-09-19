@@ -57,6 +57,8 @@ app.UseSwaggerUI(options => options.DefaultModelsExpandDepth(-1));
 
 // ENDPOINT MAPPINGS
 
+// LOGIN ENPOINTS
+
 // RETRIEVES ALL USERS - RESTRICTED TO DEV USE ONLY
 app.MapGet("users", async (HttpRequest request, BakeryCtx db) =>
 {
@@ -311,6 +313,107 @@ app.MapDelete("user/{uname}", async (HttpRequest request, string uname, BakeryCt
         return Results.StatusCode(403);
 
     db.User.Remove(user);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+// INVENTORY ENDPOINTS
+
+app.MapGet("inventory", async (HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    return await GetSession(db, token) is null ? Results.StatusCode(403) : Results.Ok(db.InventoryItem);
+});
+
+app.MapGet("inventory/id/{itemId}", async (HttpRequest request, string itemId, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+    //if (await.db.InventoryItem.FirstOrDefaultAsync(x => x.ItemID == itemID) is not { } item) return Results.NoContent();
+
+    return await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == itemId) is null
+        ? Results.NoContent()
+        : Results.Ok(await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == itemId));
+});
+
+app.MapGet("inventory/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+
+    return await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is null
+        ? Results.NoContent()
+        : Results.Ok(await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name));
+});
+// json input 
+app.MapPost("inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+
+    var inventoryItem = new InventoryItem
+    {
+        Id = Guid.NewGuid().ToString(),
+        Name = init.Name,
+        Quantity = init.Quantity,
+        PurchaseQuantity = init.PurchaseQuantity,
+        CostPerPurchaseUnit = init.CostPerPurchaseUnit,
+        Unit = init.Unit,
+        Notes = init.Notes
+    };
+
+    db.Add(inventoryItem);
+    await db.SaveChangesAsync();
+
+    return Results.Created(inventoryItem.Id, inventoryItem);
+});
+
+app.MapPut("inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == init.Name) is not { } item) return Results.NotFound();
+    
+    item.Name = init.Name != "" ? init.Name : item.Name;
+    item.Quantity = init.Quantity;
+    item.PurchaseQuantity = init.PurchaseQuantity;
+    item.CostPerPurchaseUnit = init.CostPerPurchaseUnit;
+    item.Unit = init.Unit != "" ? init.Unit : item.Unit;
+    item.Notes = init.Notes != "" ? init.Notes : item.Notes;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
+app.MapDelete("inventory/delete/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is not { } inventoryItem)
+        return Results.NotFound();
+
+    db.InventoryItem.Remove(inventoryItem);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+app.MapDelete("inventory/delete/id/{id}", async (HttpRequest request, string id, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    
+    if (await GetSession(db, token) is null) return Results.StatusCode(403);
+
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == id) is not { } inventoryItem) return Results.NotFound();
+
+    db.InventoryItem.Remove(inventoryItem);
     await db.SaveChangesAsync();
 
     return Results.Ok();
