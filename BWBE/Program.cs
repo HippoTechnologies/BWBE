@@ -273,4 +273,17 @@ app.MapDelete("/inventory/delete/{name}", async (HttpRequest request, string nam
     return Results.Ok();
 });
 
+app.MapDelete("/inventory/delete/{ID}", async (HttpRequest request, string ID, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+    if (await GetSession(db, token) is not { } session) return Results.StatusCode(403);
+    
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.ID == ID) is not { } inventoryItem) return Results.NotFound();
+
+    db.InventoryItem.Remove(inventoryItem);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
 app.Run();
