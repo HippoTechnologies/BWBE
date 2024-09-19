@@ -22,4 +22,6 @@ public class BakeryCtx : DbContext
     public DbSet<Session> Session => Set<Session>();
     
     public DbSet<InventoryItem> InventoryItem => Set<InventoryItem>();
+    
+    public DbSet<Ingredient> Ingredient => Set<Ingredient>();
 }
