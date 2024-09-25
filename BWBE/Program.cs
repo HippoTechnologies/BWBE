@@ -4,6 +4,7 @@
 
 using System.Security.Cryptography;
 using System.Text;
+using System.Xml.Linq;
 using BWBE.Bodies;
 using BWBE.Data;
 using BWBE.Models;
@@ -346,6 +347,19 @@ app.MapGet("/api/inventory", async (HttpRequest request, BakeryCtx db) =>
     return Results.Ok(inventoryList);
 });
 
+app.MapGet("/api/ingredients", async (HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session) 
+    {
+        return Results.StatusCode(403);
+    }
+
+    var ingredientsList = await db.Ingredient.ToListAsync();
+    return Results.Ok(ingredientsList);
+});
+
 app.MapGet("/api/inventory/id/{itemId}", async (HttpRequest request, string itemId, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
@@ -357,6 +371,7 @@ app.MapGet("/api/inventory/id/{itemId}", async (HttpRequest request, string item
             : Results.NotFound();
 });
 
+
 app.MapGet("/api/inventory/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
@@ -367,6 +382,57 @@ app.MapGet("/api/inventory/name/{name}", async (HttpRequest request, string name
             ? Results.Ok(item)
             : Results.NotFound();
 });
+
+/*
+ * Not Supported
+app.MapGet("/api/ingredients/id/{ingredientId}", async (HttpRequest request, int ingredientId, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    return (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+        ? Results.StatusCode(403)
+        : await db.Ingredient.FindAsync(ingredientId) is { } ingredient
+            ? Results.Ok(ingredient)
+            : Results.NotFound();
+});
+*/ 
+
+app.MapGet("/api/ingredients/recipeid/{recipeId}", async (HttpRequest request, string recipeId, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var ingredientsList = await db.Ingredient.Where(e => e.RecipeId == recipeId).ToListAsync();
+    return Results.Ok(ingredientsList);
+});
+
+app.MapGet("/api/ingredients/recipeid/{recipeId}/id/{ingredientsId}", async (HttpRequest request, string recipeId, int ingredientsId, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    return (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+        ? Results.StatusCode(403)
+        : await db.Ingredient.FindAsync(ingredientsId, recipeId) is { } ingredient
+            ? Results.Ok(ingredient)
+            : Results.NotFound();
+});
+
+app.MapGet("/api/ingredients/inventoryId/{inventoryId}/id/{ingredientId}", async (HttpRequest request, string inventoryId, int ingredientId, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var ingredientsList = await db.Ingredient.Where(e => e.InventoryId == inventoryId).Where(e => e.Id == ingredientId).ToListAsync();
+    return Results.Ok(ingredientsList);
+});
 // json input 
 app.MapPost("/api/inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
 {
@@ -376,6 +442,11 @@ app.MapPost("/api/inventory", async (HttpRequest request, InventoryItemInit init
     {
         return Results.StatusCode(403);
     }
+
+    if (await db.InventoryItem.FindAsync(init.Name) is { } item) {
+        Results.BadRequest(500);
+    }
+
 
     var inventoryItem = new InventoryItem
     {
@@ -392,6 +463,34 @@ app.MapPost("/api/inventory", async (HttpRequest request, InventoryItemInit init
     await db.SaveChangesAsync();
 
     return Results.Created($"/api/inventory/{inventoryItem.Id}", inventoryItem);
+});
+
+app.MapPost("/api/ingredients", async (HttpRequest request, IngredientInit init, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    int count = await db.Ingredient.CountAsync();
+
+    var ingredient = new Ingredient
+    {
+        Id = count + 1,
+        RecipeId = init.RecipeId,
+        InventoryId = init.InventoryId,
+        Name = init.Name,
+        Quantity = init.Quantity,
+        MinQuantity = init.MinQuantity,
+        Unit = init.Unit
+    };
+
+    db.Add(ingredient);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/api/inventory/{ingredient.Id}", ingredient);
 });
 
 app.MapPut("/api/inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
@@ -415,7 +514,7 @@ app.MapPut("/api/inventory", async (HttpRequest request, InventoryItemInit init,
     return Results.Ok();
 });
 
-app.MapDelete("/api/inventory/delete/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
+app.MapDelete("/api/inventory/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -433,7 +532,7 @@ app.MapDelete("/api/inventory/delete/name/{name}", async (HttpRequest request, s
     return Results.Ok();
 });
 
-app.MapDelete("/api/inventory/delete/id/{id}", async (HttpRequest request, string id, BakeryCtx db) =>
+app.MapDelete("/api/inventory/id/{id}", async (HttpRequest request, string id, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -445,6 +544,23 @@ app.MapDelete("/api/inventory/delete/id/{id}", async (HttpRequest request, strin
     if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == id) is not { } inventoryItem) return Results.NotFound();
 
     db.InventoryItem.Remove(inventoryItem);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+app.MapDelete("/api/ingredients/id/{id}", async (HttpRequest request, int id, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    if (await db.Ingredient.FirstOrDefaultAsync(x => x.Id == id) is not { } ingredient) return Results.NotFound();
+
+    db.Ingredient.Remove(ingredient);
     await db.SaveChangesAsync();
 
     return Results.Ok();
