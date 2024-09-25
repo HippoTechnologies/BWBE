@@ -20,8 +20,14 @@ public class BakeryCtx : DbContext
     public DbSet<User> User => Set<User>();
 
     public DbSet<Session> Session => Set<Session>();
-
+    
+    public DbSet<Email> Email => Set<Email>();
+    
+    public DbSet<PhoneNumber> PhoneNumber => Set<PhoneNumber>();
+    
+    public DbSet<InventoryItem> InventoryItem => Set<InventoryItem>();
+    
     public DbSet<Recipe> Recipe => Set<Recipe>();
-
-    public DbSet<CookStep> CookStep => Set<CookStep>();
+    
+    public DbSet<CookStep>CookStep => Set<CookStep>();
 }

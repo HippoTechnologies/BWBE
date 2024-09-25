@@ -9,9 +9,6 @@ public class RecipeInit
     [MaxLength(50)] public string PrepUnit { get; set; } = null!;
     [MaxLength(50)] public string CookUnit { get; set; } = null!;
 
-
-
-
     public float Rating { get; set; }
     public float PrepTime { get; set; }
     public float CookTime { get; set; }
