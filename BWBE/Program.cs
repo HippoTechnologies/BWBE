@@ -514,6 +514,28 @@ app.MapPut("/api/inventory", async (HttpRequest request, InventoryItemInit init,
     return Results.Ok();
 });
 
+app.MapPut("/api/ingredients", async (HttpRequest request, Ingredient update, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.Ingredient.FirstOrDefaultAsync(x => x.Id == update.Id) is not { } ingredient) return Results.NotFound();
+
+    ingredient.Name = update.Name != "" ? update.Name : ingredient.Name;
+    ingredient.Unit = update.Unit != "" ? update.Unit : ingredient.Unit;
+
+    //if init.rating and recipe.rating are the same, (0 = 0), we go with init.Rating.
+    //This is in case init.Rating is 0 but recipe.Rating is also 0
+    ingredient.Quantity = ingredient.Quantity == update.Quantity ? ingredient.Quantity : update.Quantity;
+    ingredient.MinQuantity = ingredient.MinQuantity == update.MinQuantity ? ingredient.Quantity : update.Quantity;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
 app.MapDelete("/api/inventory/name/{name}", async (HttpRequest request, string name, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
@@ -654,6 +676,47 @@ app.MapPost("/api/cookstep", async (CookStepInit init, HttpRequest request, Bake
     await db.SaveChangesAsync();
 
     return Results.Created($"/api/cookstep/{cookStep.Id}", cookStep);
+});
+
+app.MapPut("/api/recipes", async (HttpRequest request, Recipe update, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == update.Id) is not { } recipe) return Results.NotFound();
+
+    recipe.Name = update.Name != "" ? update.Name : recipe.Name;
+    recipe.Description = update.Description != "" ? update.Description : recipe.Description;
+    recipe.PrepUnit = update.PrepUnit != "" ? update.PrepUnit : recipe.PrepUnit;
+    recipe.CookUnit = update.CookUnit != "" ? update.CookUnit : recipe.CookUnit;
+
+    //if init.rating and recipe.rating are the same, (0 = 0), we go with init.Rating.
+    //This is in case init.Rating is 0 but recipe.Rating is also 0
+    recipe.Rating = update.Rating == recipe.Rating ? recipe.Rating : update.Rating;
+    recipe.PrepTime = update.PrepTime == recipe.PrepTime ? recipe.PrepTime : update.PrepTime;
+    recipe.CookTime = update.CookTime == recipe.CookTime ? recipe.CookTime : update.CookTime;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
+app.MapPut("/api/cookstep", async (HttpRequest request, CookStep update, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.CookStep.Where(e => e.RecipeId == update.RecipeId).FirstOrDefaultAsync(x => x.Id == update.Id) is not { } cookstep) return Results.NotFound();
+
+    cookstep.Description = cookstep.Description != "" ? cookstep.Description : update.Description;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
 });
 
 app.MapDelete("/api/recipes", async (HttpRequest request, BakeryCtx db) =>
