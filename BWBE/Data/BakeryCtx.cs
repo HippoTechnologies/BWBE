@@ -32,6 +32,7 @@ public class BakeryCtx : DbContext
     public DbSet<Recipe> Recipe => Set<Recipe>();
     
     public DbSet<CookStep>CookStep => Set<CookStep>();
+    public DbSet<CookedGood> CookedGood => Set<CookedGood>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

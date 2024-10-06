@@ -778,6 +778,145 @@ app.MapDelete("/api/cookstep/id/{id}/recipeid/{recipeId}", async (int id, string
     return Results.Ok();
 });
 
+// COOKED GOOD API
+app.MapGet("/api/cookedgoods", async (HttpRequest request, BakeryCtx db) => {
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var cookedList = await db.CookedGood.ToListAsync();
+    return Results.Ok(cookedList);
+});
+
+app.MapGet("/api/cookedgoods/recipeid/{recipeid}", async (string recipeid, HttpRequest request, BakeryCtx db) => {
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var cookedList = await db.CookedGood.FindAsync(recipeid);
+    return Results.Ok(cookedList);
+});
+
+app.MapPost("/api/cookedgoods", async (CookedGoodInit init, HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    if (await db.Recipe.FirstOrDefaultAsync(x => x.Id == init.RecipeId) is not { } recipe) return Results.NotFound();
+
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.RecipeId == init.RecipeId) is { } good) return Results.BadRequest("Good already exists");
+
+    var cookedGood = new CookedGood
+    {
+        Id = Guid.NewGuid().ToString(),
+        Name = init.Name,
+        RecipeId = init.RecipeId,
+        Quantity = init.Quantity
+    };
+
+    db.Add(cookedGood);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/api/cookedgoods/{cookedGood.Id}", cookedGood);
+});
+
+app.MapPut("/api/cookedgoods", async (HttpRequest request, CookedGoodInit update, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Name == update.Name) is not { } good) return Results.NotFound();
+
+    good.Name = update.Name != "" ? update.Name : good.Name;
+    good.Quantity = update.Quantity;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
+app.MapPut("/api/cookedgoods/{name}/consume/{int: count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Name == name) is not { } good) return Results.NotFound();
+
+    good.Quantity = good.Quantity - count;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
+app.MapPut("/api/cookedgoods/{name}/add/{int: count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Name == name) is not { } good) return Results.NotFound();
+
+    good.Quantity = good.Quantity + count;
+
+    await db.SaveChangesAsync();
+    return Results.Ok();
+});
+
+app.MapDelete("/api/cookedgood", async (HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var goodsList = await db.CookedGood.ToListAsync();
+    foreach (var good in goodsList)
+    {
+        db.CookedGood.Remove(good);
+        await db.SaveChangesAsync();
+    }
+
+    return Results.Ok();
+});
+
+app.MapDelete("/api/cookedgoods/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
+{
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Id == id) is not { } good) return Results.NotFound();
+
+    db.CookedGood.Remove(good);
+    await db.SaveChangesAsync();
+
+    return Results.Ok();
+});
+
+
+
 // API EXECUTION
 
 app.Run();
