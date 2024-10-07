@@ -474,6 +474,11 @@ app.MapPost("/api/ingredients", async (HttpRequest request, IngredientInit init,
         return Results.StatusCode(403);
     }
 
+    if (await db.Ingredient.FirstOrDefaultAsync(x => x.InventoryId == init.InventoryId && x.RecipeId == init.RecipeId) is { } copyIngredient) return Results.BadRequest("Ingredient for recipe and inventory already exist");
+    if (await db.InventoryItem.FindAsync(init.InventoryId) is not { } item) return Results.BadRequest("Inventory item does not exist");
+    if (await db.Recipe.FindAsync(init.RecipeId) is not { } recipe) return Results.BadRequest("Recipe does not exist");
+
+
     int count = await db.Ingredient.CountAsync();
 
     var ingredient = new Ingredient
@@ -481,7 +486,7 @@ app.MapPost("/api/ingredients", async (HttpRequest request, IngredientInit init,
         Id = count + 1,
         RecipeId = init.RecipeId,
         InventoryId = init.InventoryId,
-        Name = init.Name,
+        Name = item.Name,
         Quantity = init.Quantity,
         MinQuantity = init.MinQuantity,
         Unit = init.Unit
@@ -493,7 +498,7 @@ app.MapPost("/api/ingredients", async (HttpRequest request, IngredientInit init,
     return Results.Created($"/api/inventory/{ingredient.Id}", ingredient);
 });
 
-app.MapPut("/api/inventory", async (HttpRequest request, InventoryItemInit init, BakeryCtx db) =>
+app.MapPut("/api/inventory", async (HttpRequest request, InventoryItem update, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -501,14 +506,14 @@ app.MapPut("/api/inventory", async (HttpRequest request, InventoryItemInit init,
     {
         return Results.StatusCode(403);
     }
-    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == init.Name) is not { } item) return Results.NotFound();
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Id == update.Id) is not { } item) return Results.NotFound();
 
-    item.Name = init.Name != "" ? init.Name : item.Name;
-    item.Quantity = init.Quantity;
-    item.PurchaseQuantity = init.PurchaseQuantity;
-    item.CostPerPurchaseUnit = init.CostPerPurchaseUnit;
-    item.Unit = init.Unit != "" ? init.Unit : item.Unit;
-    item.Notes = init.Notes != "" ? init.Notes : item.Notes;
+    item.Name = update.Name != "" ? update.Name : item.Name;
+    item.Quantity = update.Quantity;
+    item.PurchaseQuantity = update.PurchaseQuantity;
+    item.CostPerPurchaseUnit = update.CostPerPurchaseUnit;
+    item.Unit = update.Unit != "" ? update.Unit : item.Unit;
+    item.Notes = update.Notes != "" ? update.Notes : item.Notes;
 
     await db.SaveChangesAsync();
     return Results.Ok();
@@ -524,7 +529,6 @@ app.MapPut("/api/ingredients", async (HttpRequest request, Ingredient update, Ba
     }
     if (await db.Ingredient.FirstOrDefaultAsync(x => x.Id == update.Id) is not { } ingredient) return Results.NotFound();
 
-    ingredient.Name = update.Name != "" ? update.Name : ingredient.Name;
     ingredient.Unit = update.Unit != "" ? update.Unit : ingredient.Unit;
 
     //if init.rating and recipe.rating are the same, (0 = 0), we go with init.Rating.
