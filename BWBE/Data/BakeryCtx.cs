@@ -38,5 +38,8 @@ public class BakeryCtx : DbContext
     {
         modelBuilder.Entity<Ingredient>()
             .HasKey(e => new { e.Id, e.RecipeId }); // Define composite key
+
+        modelBuilder.Entity<CookStep>()
+            .HasKey(e => new { e.Id, e.RecipeId }); // Define composite key
     }
 }

@@ -625,6 +625,18 @@ app.MapGet("/api/cookstep/recipeid/{recipeId}", async (string recipeId, HttpRequ
     return Results.Ok(list);
 });
 
+app.MapGet("/api/cookstep/recipeid/{recipeId}/id/{id}", async (string recipeId, int id, HttpRequest request, BakeryCtx db) => {
+    var token = request.Headers.Authorization.ToString();
+
+    if (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
+    {
+        return Results.StatusCode(403);
+    }
+
+    var list = await db.CookStep.FindAsync(id, recipeId);
+    return Results.Ok(list);
+});
+
 app.MapPost("/api/recipes", async (RecipeInit init, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
@@ -693,11 +705,11 @@ app.MapPut("/api/recipes", async (HttpRequest request, Recipe update, BakeryCtx 
     recipe.PrepUnit = update.PrepUnit != "" ? update.PrepUnit : recipe.PrepUnit;
     recipe.CookUnit = update.CookUnit != "" ? update.CookUnit : recipe.CookUnit;
 
-    //if init.rating and recipe.rating are the same, (0 = 0), we go with init.Rating.
-    //This is in case init.Rating is 0 but recipe.Rating is also 0
-    recipe.Rating = update.Rating == recipe.Rating ? recipe.Rating : update.Rating;
+    recipe.Rating = update.Rating;
     recipe.PrepTime = update.PrepTime == recipe.PrepTime ? recipe.PrepTime : update.PrepTime;
     recipe.CookTime = update.CookTime == recipe.CookTime ? recipe.CookTime : update.CookTime;
+
+    if ( (await db.CookedGood.FindAsync(recipe.Id) is { } good) && (good.Name != recipe.Name) ) good.Name = recipe.Name;
 
     await db.SaveChangesAsync();
     return Results.Ok();
@@ -711,9 +723,10 @@ app.MapPut("/api/cookstep", async (HttpRequest request, CookStep update, BakeryC
     {
         return Results.StatusCode(403);
     }
-    if (await db.CookStep.Where(e => e.RecipeId == update.RecipeId).FirstOrDefaultAsync(x => x.Id == update.Id) is not { } cookstep) return Results.NotFound();
+    if (await db.CookStep.FindAsync(update.Id, update.RecipeId) is not { } cookStep) return Results.NotFound();
 
-    cookstep.Description = cookstep.Description != "" ? cookstep.Description : update.Description;
+    cookStep.Description = update.Description;
+
 
     await db.SaveChangesAsync();
     return Results.Ok();
@@ -819,8 +832,8 @@ app.MapPost("/api/cookedgoods", async (CookedGoodInit init, HttpRequest request,
     var cookedGood = new CookedGood
     {
         Id = Guid.NewGuid().ToString(),
-        Name = init.Name,
-        RecipeId = init.RecipeId,
+        Name = recipe.Name,
+        RecipeId = recipe.Id,
         Quantity = init.Quantity
     };
 
@@ -838,16 +851,15 @@ app.MapPut("/api/cookedgoods", async (HttpRequest request, CookedGoodInit update
     {
         return Results.StatusCode(403);
     }
-    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Name == update.Name) is not { } good) return Results.NotFound();
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.RecipeId == update.RecipeId) is not { } good) return Results.NotFound();
 
-    good.Name = update.Name != "" ? update.Name : good.Name;
     good.Quantity = update.Quantity;
 
     await db.SaveChangesAsync();
     return Results.Ok();
 });
 
-app.MapPut("/api/cookedgoods/{name}/consume/{int: count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
+app.MapPut("/api/cookedgoods/{name}/consume/{count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -863,7 +875,7 @@ app.MapPut("/api/cookedgoods/{name}/consume/{int: count}", async (HttpRequest re
     return Results.Ok();
 });
 
-app.MapPut("/api/cookedgoods/{name}/add/{int: count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
+app.MapPut("/api/cookedgoods/{name}/add/{count}", async (HttpRequest request, string name, int count, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -879,7 +891,7 @@ app.MapPut("/api/cookedgoods/{name}/add/{int: count}", async (HttpRequest reques
     return Results.Ok();
 });
 
-app.MapDelete("/api/cookedgood", async (HttpRequest request, BakeryCtx db) =>
+app.MapDelete("/api/cookedgoods", async (HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -898,7 +910,7 @@ app.MapDelete("/api/cookedgood", async (HttpRequest request, BakeryCtx db) =>
     return Results.Ok();
 });
 
-app.MapDelete("/api/cookedgoods/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
+app.MapDelete("/api/cookedgoods/recipeid/{id}", async (string id, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -907,7 +919,7 @@ app.MapDelete("/api/cookedgoods/{id}", async (string id, HttpRequest request, Ba
         return Results.StatusCode(403);
     }
 
-    if (await db.CookedGood.FirstOrDefaultAsync(x => x.Id == id) is not { } good) return Results.NotFound();
+    if (await db.CookedGood.FirstOrDefaultAsync(x => x.RecipeId == id) is not { } good) return Results.NotFound();
 
     db.CookedGood.Remove(good);
     await db.SaveChangesAsync();
