@@ -393,7 +393,7 @@ app.MapGet("/api/inventory/name/{name}", async (HttpRequest request, string name
 
     return (token != Environment.GetEnvironmentVariable("DEV_AUTH_KEY") && await GetSession(db, token) is not { } session)
         ? Results.StatusCode(403)
-        : await db.InventoryItem.FindAsync(name) is { } item
+        : await db.InventoryItem.FirstOrDefaultAsync(x=> x.Name == name) is { } item
             ? Results.Ok(item)
             : Results.NotFound();
 });
@@ -564,8 +564,7 @@ app.MapDelete("/api/inventory/name/{name}", async (HttpRequest request, string n
         return Results.StatusCode(403);
     }
 
-    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is not { } inventoryItem)
-        return Results.NotFound();
+    if (await db.InventoryItem.FirstOrDefaultAsync(x => x.Name == name) is not { } inventoryItem) return Results.NotFound();
 
     db.InventoryItem.Remove(inventoryItem);
     await db.SaveChangesAsync();
