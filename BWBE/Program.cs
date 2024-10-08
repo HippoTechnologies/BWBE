@@ -9,6 +9,8 @@ using BWBE.Bodies;
 using BWBE.Data;
 using BWBE.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.DependencyInjection;
 
 // FUNCTIONS
 
@@ -55,6 +57,7 @@ async Task<int> CookStepUpdate(BakeryCtx db, List<CookStep> stepList)
 
 // API SETUP
 
+var MyAllowSpecificOrigins = "_myAllowSpecificOrigins";
 var methodsOrder = new[] { "get", "post", "put", "patch", "delete", "options", "trace" };
 
 var builder = WebApplication.CreateBuilder(args);
@@ -63,16 +66,28 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.OrderActionsBy(apiDesc =>
     $"{apiDesc.ActionDescriptor.RouteValues["controller"]}_{Array.IndexOf(methodsOrder, apiDesc.HttpMethod!.ToLower())}"));
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll",
+        builder =>
+        {
+            builder.AllowAnyOrigin()
+                   .AllowAnyMethod()
+                   .AllowAnyHeader();
+        });
+});
 
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(options => options.DefaultModelsExpandDepth(-1));
+app.UseCors("AllowAll");
+
 
 // ENDPOINT MAPPINGS
 
 // LOGIN ENDPOINTS
 
-        // RETRIEVES ALL USERS - RESTRICTED TO DEV USE ONLY
+// RETRIEVES ALL USERS - RESTRICTED TO DEV USE ONLY
 app.MapGet("/api/users", async (HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
