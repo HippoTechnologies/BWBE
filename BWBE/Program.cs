@@ -119,6 +119,78 @@ app.MapPost("/api/register/user", async (UserInit init, BakeryCtx db) =>
     return Results.Created($"session/{session.Id}", session);
 });
 
+app.MapPost("/api/register/emails", async (HttpContext httpCtx, EmailInit init, BakeryCtx db) =>
+{
+    if (httpCtx.Features.Get<IAuthenticateResultFeature>() is not { } feature) return Results.StatusCode(500);
+    if (feature.AuthenticateResult?.Ticket is not { } ticket) return Results.StatusCode(500);
+
+    var sessionId = ticket.Principal.Claims.First().Value;
+
+    if (db.Session.FirstOrDefault(o => o.Id == sessionId) is not { } session) return Results.StatusCode(500);
+    if (db.User.FirstOrDefault(o => o.Id == session.UserId) is not { } user) return Results.StatusCode(500);
+
+    var email = new Email
+    {
+        Id = Guid.NewGuid().ToString(),
+        Address = init.Address,
+        UserId = user.Id,
+        Verified = false
+    };
+
+    db.Email.Add(email);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/api/emails/{user.Id}", email);
+});
+
+app.MapPost("/api/register/phone", async (HttpContext httpCtx, PhoneInit init, BakeryCtx db) =>
+{
+    if (httpCtx.Features.Get<IAuthenticateResultFeature>() is not { } feature) return Results.StatusCode(500);
+    if (feature.AuthenticateResult?.Ticket is not { } ticket) return Results.StatusCode(500);
+
+    var sessionId = ticket.Principal.Claims.First().Value;
+
+    if (db.Session.FirstOrDefault(o => o.Id == sessionId) is not { } session) return Results.StatusCode(500);
+    if (db.User.FirstOrDefault(o => o.Id == session.UserId) is not { } user) return Results.StatusCode(500);
+
+    var phone = new PhoneNumber
+    {
+        Id = Guid.NewGuid().ToString(),
+        CountryCode = init.CountryCode,
+        Number = init.Number,
+        UserId = user.Id,
+        Verified = false
+    };
+
+    db.PhoneNumber.Add(phone);
+    await db.SaveChangesAsync();
+
+    return Results.Created($"/api/phones/{user.Id}", phone);
+});
+
+app.MapGet("/api/users", async (BakeryCtx ctx) => await ctx.User.ToListAsync())
+    .RequireAuthorization(o => o.RequireClaim(ClaimTypes.Authentication));
+
+app.MapGet("/api/users/{id}", [Authorize] async (string id, HttpContext ctx, BakeryCtx db) =>
+{
+    if (ctx.Features.Get<IAuthenticateResultFeature>() is not { } feature) return Results.StatusCode(500);
+    if (feature.AuthenticateResult?.Ticket is not { } ticket) return Results.StatusCode(500);
+
+    var sessionId = ticket.Principal.Claims.First().Value;
+
+    if (await db.Session.FirstOrDefaultAsync(o => o.Id == sessionId) is not { } session) return Results.StatusCode(500);
+    if (await db.User.FirstOrDefaultAsync(o => o.Id == id) is not { } user) return Results.StatusCode(500);
+
+    if (session.UserId != user.Id && ticket.Principal.Claims.First().Type == ClaimTypes.Authentication)
+        return Results.Ok(user);
+
+    if (session.UserId != user.Id) return Results.Unauthorized();
+
+    return user.Id != id && ticket.Principal.Claims.First().Type != ClaimTypes.Authentication
+        ? Results.Unauthorized()
+        : Results.Ok(user);
+});
+
 app.MapGet("/api/sessions", async (BakeryCtx db) => await db.Session.ToListAsync())
     .RequireAuthorization(o => o.RequireClaim(ClaimTypes.Authentication));
 
@@ -128,17 +200,32 @@ app.MapGet("/api/sessions/{id}", [Authorize] async (HttpContext httpCtx, string 
     if (feature.AuthenticateResult?.Ticket is not { } ticket) return Results.StatusCode(500);
 
     var sessionId = ticket.Principal.Claims.First().Value;
+
+    if (sessionId != id && ticket.Principal.Claims.First().Type == ClaimTypes.Authentication)
+        return Results.Ok(await db.Session.FirstOrDefaultAsync(o => o.Id == sessionId));
+
     return sessionId != id
-        ? Results.Forbid()
+        ? Results.Unauthorized()
         : Results.Ok(await db.Session.FirstOrDefaultAsync(o => o.Id == sessionId));
 });
 
 app.MapGet("/api/emails", async (BakeryCtx db) => await db.Email.ToListAsync())
     .RequireAuthorization(o => o.RequireClaim(ClaimTypes.Authentication));
 
-app.MapGet("/api/users", async (BakeryCtx ctx) => await ctx.User.ToListAsync())
+app.MapGet("/api/phones", async (BakeryCtx db) => await db.PhoneNumber.ToListAsync())
     .RequireAuthorization(o => o.RequireClaim(ClaimTypes.Authentication));
 
+app.MapGet("/api/inventory", [Authorize] async (BakeryCtx db) => await db.InventoryItem.ToListAsync());
+
+app.MapGet("/api/inventory/search/id/{id}", async (string id, BakeryCtx db) =>
+    await db.InventoryItem.FirstOrDefaultAsync(o => o.Id == id) is not { } item
+        ? Results.NotFound()
+        : Results.Ok(item));
+
+app.MapGet("/api/inventory/search/name/{name}", async (string name, BakeryCtx db) =>
+    await db.InventoryItem.FirstOrDefaultAsync(o => o.Name == name) is not { } item
+        ? Results.NotFound()
+        : Results.Ok(item));
 
 // API EXECUTION
 

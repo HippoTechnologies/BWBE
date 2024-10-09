@@ -1,6 +1,5 @@
 using BWBE.Models;
 using Microsoft.EntityFrameworkCore;
-using MySqlConnector;
 
 namespace BWBE.Data;
 
@@ -24,4 +23,18 @@ public class BakeryCtx : DbContext
     public DbSet<Email> Email => Set<Email>();
     
     public DbSet<PhoneNumber> PhoneNumber => Set<PhoneNumber>();
+    
+    public DbSet<InventoryItem> InventoryItem => Set<InventoryItem>();
+
+    public DbSet<Ingredient> Ingredient => Set<Ingredient>();
+    
+    public DbSet<Recipe> Recipe => Set<Recipe>();
+    
+    public DbSet<CookStep>CookStep => Set<CookStep>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Ingredient>()
+            .HasKey(e => new { e.Id, e.RecipeId }); // Define composite key
+    }
 }
