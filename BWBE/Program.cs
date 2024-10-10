@@ -548,8 +548,8 @@ app.MapPut("/api/ingredients", async (HttpRequest request, Ingredient update, Ba
 
     //if init.rating and recipe.rating are the same, (0 = 0), we go with init.Rating.
     //This is in case init.Rating is 0 but recipe.Rating is also 0
-    ingredient.Quantity = ingredient.Quantity == update.Quantity ? ingredient.Quantity : update.Quantity;
-    ingredient.MinQuantity = ingredient.MinQuantity == update.MinQuantity ? ingredient.Quantity : update.Quantity;
+    ingredient.Quantity = Math.Abs(ingredient.Quantity - update.Quantity) < 0.001 ? ingredient.Quantity : update.Quantity;
+    ingredient.MinQuantity = ingredient.MinQuantity == update.MinQuantity ? ingredient.MinQuantity : update.MinQuantity;
 
     await db.SaveChangesAsync();
     return Results.Ok();
