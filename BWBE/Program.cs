@@ -334,11 +334,18 @@ app.MapDelete("/api/user/{uname}", async (HttpRequest request, string uname, Bak
 {
     if (await db.User.FirstOrDefaultAsync(x => x.Username == uname) is not { } user) return Results.NotFound();
 
+    if (request.Headers.Authorization == Environment.GetEnvironmentVariable("DEV_AUTH_KEY"))
+    {
+        db.User.Remove(user);
+        await db.SaveChangesAsync();
+
+        return Results.Ok();
+    }
+    
     if (await db.Session.FirstOrDefaultAsync(x => x.UserId == user.Id) is not { } session)
         return Results.StatusCode(403);
 
-    if (request.Headers.Authorization != session.Id ||
-        request.Headers.Authorization != Environment.GetEnvironmentVariable("DEV_AUTH_KEY"))
+    if (request.Headers.Authorization != session.Id)
         return Results.StatusCode(403);
 
     db.User.Remove(user);
