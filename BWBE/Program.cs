@@ -234,16 +234,25 @@ app.MapPost("/api/register/email", async (EmailInit email, HttpRequest request, 
         // CREATES A PHONE OBJECT ASSOCIATED WITH A USER
         // NOTE: THIS SHOULD BE RUN ALONGSIDE INITIAL REGISTRATION AS A SEPARATE REQUEST FOLLOWING
         // USER CREATION, BASED ON INFORMATION 
-app.MapPost("/api/register/phone", async (PhoneNumber phone, HttpRequest request, BakeryCtx db) =>
+app.MapPost("/api/register/phone", async (PhoneInit phone, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
     // AUTHENTICATE INDICATED SESSION PASSED BY AUTHORIZATION HEADER
     if (await GetSession(db, token) is not { } session) return Results.StatusCode(403);
     if (session.UserId != phone.UserId) return Results.StatusCode(403);
+    
+    var phoneNumber = new PhoneNumber()
+    {
+        Id = Guid.NewGuid().ToString(),
+        CountryCode = phone.CountryCode,
+        Number = phone.Number,
+        UserId = phone.UserId,
+        Verified = false
+    };
 
     // ADD PHONE NUMBER TO THE DATABASE
-    db.PhoneNumber.Add(phone);
+    db.PhoneNumber.Add(phoneNumber);
     await db.SaveChangesAsync();
 
     // INDICATE SUCCESSFUL RESOURCE CREATION AND PASS BACK NEW PHONE NUMBER OBJECT
