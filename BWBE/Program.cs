@@ -204,10 +204,10 @@ app.MapPost("/api/register/user", async (UserInit init, BakeryCtx db) =>
     return Results.Created($"session/{session.Id}", session);
 });
 
-        // CREATES AN EMAIL OBJECT ASSOCIATED WITH A USER
-        // NOTE: THIS SHOULD BE RUN ALONG SIDE INITIAL REGISTRATION AS A SEPARATE REQUEST FOLLOWING 
-        // USER CREATION, BASED ON INFORMATION GATHERED FROM REGISTRATION PAGE
-app.MapPost("/api/register/email", async (Email email, HttpRequest request, BakeryCtx db) =>
+// CREATES AN EMAIL OBJECT ASSOCIATED WITH A USER
+// NOTE: THIS SHOULD BE RUN ALONG SIDE INITIAL REGISTRATION AS A SEPARATE REQUEST FOLLOWING 
+// USER CREATION, BASED ON INFORMATION GATHERED FROM REGISTRATION PAGE
+app.MapPost("/api/register/email", async (EmailInit email, HttpRequest request, BakeryCtx db) =>
 {
     var token = request.Headers.Authorization.ToString();
 
@@ -215,12 +215,20 @@ app.MapPost("/api/register/email", async (Email email, HttpRequest request, Bake
     if (await GetSession(db, token) is not { } session) return Results.NotFound();
     if (session.UserId != email.UserId) return Results.StatusCode(403);
 
+    var newEmail = new Email()
+    {
+        Id = Guid.NewGuid().ToString(),
+        EmailAddress = email.EmailAddress,
+        UserId = email.UserId,
+        Verified = false
+    };
+    
     // ADD EMAIL TO THE DATABASE
-    db.Email.Add(email);
+    db.Email.Add(newEmail);
     await db.SaveChangesAsync();
 
     // INDICATE SUCCESSFUL RESOURCE CREATION AND PASS BACK NEW EMAIL OBJECT
-    return Results.Created($"emails/{email.UserId}/{email.Id}", email);
+    return Results.Created($"emails/{email.UserId}/{newEmail.Id}", email);
 });
 
         // CREATES A PHONE OBJECT ASSOCIATED WITH A USER
