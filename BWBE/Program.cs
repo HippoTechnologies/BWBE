@@ -60,21 +60,10 @@ builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c => c.OrderActionsBy(apiDesc =>
     $"{apiDesc.ActionDescriptor.RouteValues["controller"]}_{Array.IndexOf(methodsOrder, apiDesc.HttpMethod!.ToLower())}"));
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy("AllowAll",
-        policyBuilder =>
-        {
-            policyBuilder.AllowAnyOrigin()
-                   .AllowAnyMethod()
-                   .AllowAnyHeader();
-        });
-});
 
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI(options => options.DefaultModelsExpandDepth(-1));
-app.UseCors("AllowAll");
 
 
 // ENDPOINT MAPPINGS
