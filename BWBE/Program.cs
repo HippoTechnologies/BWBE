@@ -207,7 +207,7 @@ app.MapPost("/api/register/email", async (EmailInit email, HttpRequest request, 
     var newEmail = new Email()
     {
         Id = Guid.NewGuid().ToString(),
-        EmailAddress = email.EmailAddress,
+        Address = email.EmailAddress,
         UserId = email.UserId,
         Verified = false
     };
@@ -321,7 +321,7 @@ app.MapPut("/api/email/{userId}/{emailAddr}",
         if (await GetSession(db, token) is not { } session) return Results.StatusCode(403);
         if (session.UserId != userId) return Results.StatusCode(403);
 
-        if (await db.Email.FirstOrDefaultAsync(x => x.UserId == userId && x.EmailAddress == emailAddr) is null)
+        if (await db.Email.FirstOrDefaultAsync(x => x.UserId == userId && x.Address == emailAddr) is null)
             return Results.NotFound();
 
         db.Email.Update(email);
